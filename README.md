@@ -1,0 +1,1 @@
+For DevOps CI/CD course training projects
