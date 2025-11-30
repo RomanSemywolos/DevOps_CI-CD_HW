@@ -1,336 +1,162 @@
-lesson-5/
+# lesson-8-9: Повний CI/CD-процес з Jenkins, Terraform, Helm та Argo CD
 
-│
+Цей урок реалізує повний цикл розгортання Django-застосунку в Kubernetes-кластері EKS:
 
-├── main.tf # Main file to connect all modules
-
-├── backend.tf # Terraform backend configuration (S3 + DynamoDB)
-
-├── outputs.tf # Global outputs from all modules
-
-│
-
-├── modules/ # Directory containing reusable modules
-
-│ │
-
-│ ├── s3-backend/ # Module for S3 bucket and DynamoDB table
-
-│ │ ├── s3.tf
-
-│ │ ├── dynamodb.tf
-
-│ │ ├── variables.tf
-
-│ │ └── outputs.tf
-
-│ │
-
-│ ├── vpc/ # Module for VPC infrastructure
-
-│ │ ├── vpc.tf
-
-│ │ ├── routes.tf
-
-│ │ ├── variables.tf
-
-│ │ └── outputs.tf
-
-│ │
-
-│ └── ecr/ # Module for ECR repository
-
-│ ├── ecr.tf
-
-│ ├── variables.tf
-
-│ └── outputs.tf
-
-│
-
-└── README.md # Project documentation
-
-
-
-
+- **Terraform** — керування інфраструктурою як кодом
+- **AWS S3 + DynamoDB** — бекенд для Terraform state
+- **AWS ECR** — зберігання Docker-образів
+- **AWS EKS + VPC** — Kubernetes-кластер і мережа
+- **Helm** — деплой застосунку
+- **Jenkins** — CI: збірка Docker-образу, пуш в ECR, оновлення Helm values
+- **Argo CD** — CD у стилі GitOps: автоматична синхронізація з Git
 
 ---
 
+## Структура проекту
 
-
-\## Terraform Commands
-
-
-
-1\. \*\*Initialize Terraform (downloads providers, sets up modules)\*\*
-
-
-
-```bash
-
+```text
+lesson-8-9/
+│
+├── main.tf                  <- Головний файл для підключення модулів
+├── backend.tf               <- Налаштування бекенду для стейтів (S3 + DynamoDB)
+├── outputs.tf               <- Загальні виводи ресурсів
+│
+├── modules/                 <- Каталог з усіма модулями
+│   ├── s3-backend/          <- Модуль для S3 та DynamoDB
+│   │   ├── s3.tf            <- Створення S3-бакета
+│   │   ├── dynamodb.tf      <- Створення DynamoDB
+│   │   ├── variables.tf     <- Змінні для S3/Dynamo
+│   │   └── outputs.tf       <- Вивід ID бакета та імені таблиці
+│   │
+│   ├── vpc/                 <- Модуль для VPC
+│   │   ├── vpc.tf           <- Створення VPC, підмереж, Internet Gateway, NAT
+│   │   ├── routes.tf        <- Налаштування маршрутних таблиць
+│   │   ├── variables.tf     <- Змінні для VPC
+│   │   └── outputs.tf       <- Виведення ID VPC та підмереж
+│   │
+│   ├── ecr/                 <- Модуль для ECR
+│   │   ├── ecr.tf           <- Створення ECR репозиторію
+│   │   ├── variables.tf     <- Змінні для ECR
+│   │   └── outputs.tf       <- Виведення URL репозиторію
+│   │
+│   ├── eks/                      <- Модуль для Kubernetes кластера
+│   │   ├── eks.tf                <- Створення EKS-кластера
+│   │   ├── node.tf               <- Створення node group для воркерів
+│   │   ├── aws_ebs_csi_driver.tf <- Встановлення EBS CSI драйвера (IRSA)
+│   │   ├── variables.tf          <- Змінні для EKS
+│   │   └── outputs.tf            <- Виведення інформації про кластер
+│   │
+│   ├── jenkins/             <- Модуль для Helm-установки Jenkins
+│   │   ├── jenkins.tf       <- Helm release для Jenkins + IAM роль для Kaniko
+│   │   ├── variables.tf     <- Змінні (cluster_name, oidc тощо)
+│   │   ├── providers.tf     <- Вимоги до провайдерів
+│   │   ├── values.yaml      <- Конфігурація Jenkins (JCasC, plugins)
+│   │   └── outputs.tf       <- Виводи (імʼя релізу, namespace)
+│   │
+│   └── argo_cd/             <- Модуль для Helm-установки Argo CD
+│       ├── argo_cd.tf       <- Helm release для Argo CD + Helm release для appʼів
+│       ├── variables.tf     <- Змінні (версія чарта, namespace)
+│       ├── providers.tf     <- Вимоги до провайдерів
+│       ├── values.yaml      <- Базова конфігурація Argo CD server
+│       ├── outputs.tf       <- Виводи (hostname, команда для пароля)
+│       └── charts/          <- Helm-чарт для ArgoCD Application/Repository
+│           ├── Chart.yaml
+│           ├── values.yaml  <- Список applications, repositories (django-app)
+│           └── templates/
+│               ├── application.yaml
+│               └── repository.yaml
+│
+├── charts/
+│   └── django-app/
+│       ├── templates/
+│       │   ├── deployment.yaml
+│       │   ├── service.yaml
+│       │   ├── configmap.yaml
+│       │   └── hpa.yaml
+│       ├── Chart.yaml
+│       └── values.yaml      <- Налаштування образу та змінних середовища
+Команди для розгортання
+1. Перехід у директорію з уроком
+cd lesson-8-9/
+2. Ініціалізація Terraform
 terraform init
-
-
-
-
-
-Preview infrastructure changes
-
-
-
+3. Перевірка плану змін
 terraform plan
-
-
-
-
-
-Apply changes, create resources
-
-
-
+4. Створення інфраструктури
 terraform apply
+Буде створено:
 
+VPC з публічними та приватними підмережами
 
+S3-бакет та DynamoDB-таблиця для Terraform state
 
+ECR-репозиторій для образів (lesson-7-hw-ecr)
 
+EKS-кластер з node group
 
-Destroy all created resources
+Jenkins у namespace jenkins
 
+Argo CD у namespace argocd
 
+ArgoCD Application, яке підтягує lesson-8-9/charts/django-app з Git
 
+Налаштування доступу до кластера
+Оновлення kubeconfig:
+
+aws eks --region eu-central-1 update-kubeconfig --name lesson-8-9-eks-cluster
+Argo CD
+Отримання початкового admin-пароля:
+
+kubectl -n argocd get secret argocd-initial-admin-secret \
+  -o jsonpath='{.data.password}' | base64 -d
+Argo CD Application автоматично підтягує Helm-чарт:
+
+репозиторій: https://github.com/YOUR_GITHUB_USERNAME/DevOps_CI-CD_HW
+
+шлях: lesson-8-9/charts/django-app
+
+гілка: main
+
+Після зміни values.yaml і пушу в Git — Argo CD оновлює деплоймент.
+
+Jenkins та CI/CD
+Jenkins встановлюється через Helm-чарт у модулі modules/jenkins.
+Конфігурація з values.yaml:
+
+створюється адмін-користувач
+
+ставляться базові плагіни (kubernetes, git, workflow, JCasC тощо)
+
+налаштовується seed-job через JCasC
+
+Пайплайн Jenkins (Jenkinsfile):
+
+Клонує репозиторій DevOps_CI-CD_HW
+
+Збирає Docker-образ для Django через Kaniko
+
+Пушить образ до ECR (lesson-7-hw-ecr)
+
+Оновлює тег образу в lesson-8-9/charts/django-app/values.yaml
+
+Комітить і пушить зміни в гілку main
+
+Argo CD виявляє зміну в Git і автоматично оновлює застосунок
+
+Jenkinsfile може зберігатися в цьому ж репозиторії або бути доданий вручну в Jenkins — це не жорстко регламентовано структурою завдання.
+
+Видалення ресурсів
+Видалити застосунок через Argo CD UI або:
+(якщо встановлено додатково helm-релізи вручну — видалити їх окремо)
+
+Видалити інфраструктуру Terraform
 terraform destroy
+Це видалить:
 
+EKS-кластер та вузли
 
+ECR-репозиторій
 
+Jenkins, Argo CD, VPC та інші ресурси
 
-
-View outputs
-
-
-
-terraform output
-
-
-
-Modules Overview
-
-Module: s3-backend
-
-
-
-Manages Terraform state storage:
-
-
-
-aws\_s3\_bucket – bucket with versioning and encryption enabled.
-
-
-
-aws\_dynamodb\_table – table for locking state files to prevent concurrent updates.
-
-
-
-Automatically used in backend.tf for state management.
-
-
-
-Module: vpc
-
-
-
-Sets up basic networking:
-
-
-
-aws\_vpc – main network with configurable CIDR block.
-
-
-
-aws\_subnet – 3 public and 3 private subnets across availability zones.
-
-
-
-aws\_internet\_gateway – public subnets can access the internet.
-
-
-
-aws\_nat\_gateway – private subnets can access the internet.
-
-
-
-aws\_route\_table, aws\_route, aws\_route\_table\_association – traffic routing.
-
-
-
-Module: ecr
-
-
-
-Creates an ECR repository for Docker images:
-
-
-
-aws\_ecr\_repository – optional image scanning (scan\_on\_push = true).
-
-
-
-aws\_ecr\_repository\_policy – allows EC2 (or other AWS services) to pull images.
-
-
-
-Default policy grants pull access to ec2.amazonaws.com.
-
-
-
-Backend Automation Script
-
-
-
-To fully automate backend creation without manual edits, use the included shell script for Linux:
-
-
-
-File: setup-backend.sh
-
-
-
-\#!/bin/bash
-
-\# Auto-create S3 bucket and DynamoDB table if missing, then configure Terraform backend.
-
-
-
-BUCKET\_NAME="lesson-5-2734-9713-5368"
-
-DYNAMO\_TABLE="terraform-locks"
-
-REGION="eu-central-1"
-
-
-
-echo "Checking if S3 bucket exists..."
-
-aws s3api head-bucket --bucket "$BUCKET\_NAME" 2>/dev/null || {
-
-&nbsp;   echo "Bucket does not exist. Creating..."
-
-&nbsp;   aws s3api create-bucket --bucket "$BUCKET\_NAME" --region "$REGION" --create-bucket-configuration LocationConstraint=$REGION
-
-&nbsp;   aws s3api put-bucket-versioning --bucket "$BUCKET\_NAME" --versioning-configuration Status=Enabled
-
-&nbsp;   echo "S3 bucket created and versioning enabled."
-
-}
-
-
-
-echo "Checking if DynamoDB table exists..."
-
-aws dynamodb describe-table --table-name "$DYNAMO\_TABLE" 2>/dev/null || {
-
-&nbsp;   echo "DynamoDB table does not exist. Creating..."
-
-&nbsp;   aws dynamodb create-table \\
-
-&nbsp;       --table-name "$DYNAMO\_TABLE" \\
-
-&nbsp;       --attribute-definitions AttributeName=LockID,AttributeType=S \\
-
-&nbsp;       --key-schema AttributeName=LockID,KeyType=HASH \\
-
-&nbsp;       --billing-mode PAY\_PER\_REQUEST
-
-&nbsp;   echo "Waiting for table to become active..."
-
-&nbsp;   aws dynamodb wait table-exists --table-name "$DYNAMO\_TABLE"
-
-&nbsp;   echo "DynamoDB table is ready."
-
-}
-
-
-
-echo "Configuring Terraform backend..."
-
-cat > backend.tf <<EOL
-
-terraform {
-
-&nbsp; backend "s3" {
-
-&nbsp;   bucket         = "$BUCKET\_NAME"
-
-&nbsp;   key            = "lesson-5/terraform.tfstate"
-
-&nbsp;   region         = "$REGION"
-
-&nbsp;   dynamodb\_table = "$DYNAMO\_TABLE"
-
-&nbsp;   encrypt        = true
-
-&nbsp; }
-
-}
-
-EOL
-
-
-
-echo "Backend configured. You can now run 'terraform init'."
-
-
-
-
-
-Usage:
-
-
-
-chmod +x setup-backend.sh
-
-./setup-backend.sh
-
-terraform init
-
-
-
-
-
-This approach avoids any manual editing of backend.tf and ensures that Terraform can automatically use S3 + DynamoDB as the backend.
-
-
-
-Notes
-
-
-
-Make sure your AWS credentials have permissions for S3, DynamoDB, VPC, ECR, EC2, Elastic IPs, Internet Gateway, NAT Gateway.
-
-
-
-The bucket name in setup-backend.sh should be globally unique.
-
-
-
-Outputs of Terraform include:
-
-
-
-s3\_bucket\_name – S3 bucket for state files
-
-
-
-dynamodb\_table\_name – DynamoDB lock table
-
-
-
-vpc\_id – main VPC ID
-
-
-
-public\_subnets, private\_subnets
-
-
-
-ecr\_repository\_url – ECR repository URL
-
+---
