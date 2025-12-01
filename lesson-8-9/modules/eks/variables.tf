@@ -1,39 +1,51 @@
 variable "region" {
-  description = "AWS region for deployment"
+  description = "AWS region для деплою"
+  type        = string
   default     = "eu-central-1"
 }
 
 variable "cluster_name" {
-  description = "Name of the EKS cluster"
-  default     = "lesson-8-9-eks-cluster"
+  description = "Назва EKS кластера"
+  type        = string
+  default     = "lesson-7-hw-cluster"
 }
 
 variable "subnet_ids" {
-  description = "List of subnet IDs for the EKS cluster"
+  description = "Список підмереж для worker node group"
   type        = list(string)
 }
 
 variable "node_group_name" {
-  description = "Name of the node group"
-  default     = "lesson-8-9-node-group"
+  description = "Назва node group"
+  type        = string
+  default     = "lesson7-node-group"
 }
 
 variable "instance_type" {
-  description = "EC2 instance type for the worker nodes"
+  description = "Тип EC2 інстансів для нод"
+  type        = string
   default     = "t3.medium"
 }
 
 variable "desired_size" {
-  description = "Desired number of worker nodes"
+  description = "Бажана кількість worker нод"
+  type        = number
   default     = 2
 }
 
 variable "max_size" {
-  description = "Maximum number of worker nodes"
+  description = "Максимальна кількість worker нод"
+  type        = number
   default     = 3
 }
 
 variable "min_size" {
-  description = "Minimum number of worker nodes"
+  description = "Мінімальна кількість worker нод"
+  type        = number
   default     = 1
+}
+
+variable "vpc_id" {
+  description = "ID VPC для створення SG нод"
+  type        = string
 }

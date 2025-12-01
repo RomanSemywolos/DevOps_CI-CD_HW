@@ -1,218 +1,241 @@
-# lesson-8-9: Повний CI/CD-процес із Jenkins, Terraform, Helm та Argo CD
+# Інфраструктура для Django-застосунку з CI/CD та універсальним RDS-модулем
 
-Цей проєкт реалізує комплексний DevOps-процес, де інфраструктура, CI та CD працюють разом.  
-Поєднання Terraform, Jenkins, Helm та Argo CD забезпечує автоматичний збір Docker-образів, оновлення Helm-чарта та синхронізацію застосунку у Kubernetes-кластері AWS EKS.
-
-## Використані технології
-
-- **Terraform** – інфраструктура як код.
-- **AWS S3 + DynamoDB** – зберігання Terraform state та блокування.
-- **AWS ECR** – контейнерний реєстр для Docker-образів.
-- **AWS VPC** – приватна мережа з публічними та приватними підмережами.
-- **AWS EKS** – Kubernetes-кластер.
-- **Helm** – деплой Django-застосунку.
-- **Jenkins** – CI-сервер для автоматизації збірки образів.
-- **Kaniko** – бездемоновий Docker builder у Kubernetes.
-- **Argo CD** – GitOps CD: відстеження змін у Git та автоматичне оновлення кластера.
+Цей проєкт реалізує повний стек інфраструктури для Django-застосунку в AWS, включаючи Kubernetes, GitOps, CI/CD, контейнеризацію та універсальний Terraform-модуль для RDS/Aurora.
 
 ---
 
-# Структура проєкту
+## Використані технології
+
+- **Terraform** — інфраструктура як код  
+- **AWS**:
+  - S3 + DynamoDB — бекенд Terraform state  
+  - VPC — мережа  
+  - ECR — контейнерний реєстр  
+  - EKS — Kubernetes кластер  
+  - RDS / Aurora — база даних  
+- **Docker** — контейнеризація застосунку  
+- **Kubernetes + Helm** — деплой  
+- **Jenkins** — CI/CD  
+- **Argo CD** — GitOps  
+
+---
+
+## Структура проєкту
 
 ```
 lesson-8-9/
 │
-├── main.tf                  <- Підключення всіх модулів
-├── backend.tf               <- Бекенд Terraform (S3 + DynamoDB)
-├── outputs.tf               <- Загальні вихідні дані
+├── main.tf
+├── backend.tf
+├── outputs.tf
 │
-├── modules/                 <- Індивідуальні модулі Terraform
-│   ├── s3-backend/          <- S3 та DynamoDB для тераформ-стейту
-│   │   ├── s3.tf
-│   │   ├── dynamodb.tf
+├── modules/
+│   ├── s3-backend/
+│   ├── vpc/
+│   ├── ecr/
+│   ├── eks/
+│   ├── rds/
+│   │   ├── rds.tf
+│   │   ├── aurora.tf
+│   │   ├── shared.tf
 │   │   ├── variables.tf
 │   │   └── outputs.tf
-│   │
-│   ├── vpc/                 <- VPC з публічними та приватними підмережами
-│   │   ├── vpc.tf
-│   │   ├── routes.tf
-│   │   ├── variables.tf
-│   │   └── outputs.tf
-│   │
-│   ├── ecr/                 <- Репозиторій ECR
-│   │   ├── ecr.tf
-│   │   ├── variables.tf
-│   │   └── outputs.tf
-│   │
-│   ├── eks/                 <- Kubernetes-кластер EKS
-│   │   ├── eks.tf
-│   │   ├── node.tf
-│   │   ├── aws_ebs_csi_driver.tf
-│   │   ├── variables.tf
-│   │   └── outputs.tf
-│   │
-│   ├── jenkins/             <- Helm-чарт Jenkins + роль Kaniko
-│   │   ├── jenkins.tf
-│   │   ├── values.yaml
-│   │   ├── variables.tf
-│   │   ├── providers.tf
-│   │   └── outputs.tf
-│   │
-│   └── argo_cd/             <- Встановлення Argo CD і Argo Applications
-│       ├── argo_cd.tf
-│       ├── values.yaml
-│       ├── providers.tf
-│       ├── variables.tf
-│       ├── outputs.tf
-│       └── charts/
-│           ├── Chart.yaml
-│           ├── values.yaml     <- Список Applications + Git репозиторії
-│           └── templates/
-│               ├── application.yaml
-│               └── repository.yaml
+│   ├── jenkins/
+│   └── argo_cd/
 │
-├── charts/                  <- Helm-чарт Django застосунку
-│   └── django-app/
-│       ├── templates/
-│       │   ├── deployment.yaml
-│       │   ├── service.yaml
-│       │   ├── configmap.yaml
-│       │   └── hpa.yaml
-│       ├── Chart.yaml
-│       └── values.yaml      <- Налаштування образу + змінних середовища
+└── charts/
+    └── django-app/
+        ├── templates/
+        ├── Chart.yaml
+        └── values.yaml
 ```
 
 ---
 
 # Розгортання інфраструктури
 
-## 1. Перейти в директорію
-
-```bash
-cd lesson-8-9/
-```
-
-## 2. Ініціалізація Terraform
+## 1. Ініціалізація Terraform
 
 ```bash
 terraform init
 ```
 
-## 3. Перевірка плану
+## 2. Перевірка плану
 
 ```bash
 terraform plan
 ```
 
-## 4. Створення інфраструктури
+## 3. Створення всіх ресурсів
 
 ```bash
 terraform apply
 ```
 
-### Буде створено:
+### У результаті створюється:
 
-- VPC (3 публічні + 3 приватні підмережі)
-- S3-бакет та DynamoDB-таблиця для Terraform state
-- ECR репозиторій: **lesson-7-hw-ecr**
-- EKS-кластер з node group
-- Jenkins (через Helm)
-- Argo CD та Argo CD Applications (GitOps)
-- Application для Django-чарта
+- VPC з публічними та приватними підмережами  
+- S3 + DynamoDB для Terraform backend  
+- ECR репозиторій  
+- EKS Kubernetes кластер  
+- **Aurora Cluster або стандартна RDS** (залежно від `use_aurora`)  
+- Jenkins і Argo CD  
+- Деплой Django через Helm  
 
 ---
 
-# Налаштування доступу до Kubernetes
+# Docker + ECR
 
-Оновлення kubeconfig:
+## Логін у ECR
+
+```bash
+aws ecr get-login-password --region eu-central-1 \
+  | docker login --username AWS --password-stdin 273497135368.dkr.ecr.eu-central-1.amazonaws.com
+```
+
+## Збірка образу
+
+```bash
+docker build -t django-app ./django-app
+```
+
+## Пуш у ECR
+
+```bash
+docker tag django-app:latest 273497135368.dkr.ecr.eu-central-1.amazonaws.com/lesson-7-hw-ecr:latest
+docker push 273497135368.dkr.ecr.eu-central-1.amazonaws.com/lesson-7-hw-ecr:latest
+```
+
+---
+
+# Kubernetes + Helm
+
+## Налаштування kubeconfig
 
 ```bash
 aws eks --region eu-central-1 update-kubeconfig --name lesson-7-hw-cluster
 ```
 
----
-
-# Збірка та пуш Docker образу (без Jenkins)
-
-(Для тесту)
+## Деплой Django застосунку
 
 ```bash
-aws ecr get-login-password --region eu-central-1 \
-  | docker login --username AWS --password-stdin <account>.dkr.ecr.eu-central-1.amazonaws.com
-
-docker build -t django-app ./django
-docker tag django-app:latest <repo-url>:latest
-docker push <repo-url>:latest
+cd charts/
+helm install django-app ./django-app
 ```
 
----
-
-# Jenkins (CI)
-
-Jenkins встановлюється через Terraform у namespace `jenkins`.
-
-Функціональність пайплайна (Jenkinsfile):
-
-1. Клонує репозиторій DevOps_CI-CD_HW
-2. Збирає Docker-образ через Kaniko
-3. Пушить образ у ECR
-4. Оновлює `image.tag` у `charts/django-app/values.yaml`
-5. Комітить і пушить зміни у гілку `main`
-6. Argo CD автоматично підхоплює оновлення
-
-Jenkins отримує всі необхідні права через IRSA (IAM роль `*-jenkins-kaniko-role`).
-
----
-
-# Argo CD (CD)
-
-Argo CD працює у namespace `argocd`.
-
-Тут створюється Argo CD Application, який:
-
-- відстежує репозиторій:  
-  `https://github.com/RomanSemywolos/DevOps_CI-CD_HW`
-- слідкує за шляхом:  
-  `lesson-8-9/charts/django-app`
-- автоматично синхронізує зміни Helm-чарта
-
-## Отримання початкового пароля
+## Видалення
 
 ```bash
-kubectl -n argocd get secret argocd-initial-admin-secret \
--o jsonpath='{.data.password}' | base64 -d
-```
-
----
-
-# Видалення інфраструктури
-
-### 1. Видалити деплой через Argo CD (або просто залишити — terraform сам прибере кластер)
-
-### 2. Видалити всі ресурси Terraform:
-
-```bash
+helm uninstall django-app
 terraform destroy
 ```
 
-Це прибере:
+---
 
-- EKS + вузли
-- Jenkins
-- Argo CD
-- ECR
-- VPC
-- NAT + Internet Gateway
-- S3 та DynamoDB (якщо не захищені)
+# Універсальний RDS-модуль
+
+Модуль автоматично створює:
+
+- **DB Subnet Group**  
+- **Security Group**, яка пропускає трафік тільки з EKS worker nodes  
+- **Parameter Group**  
+- Aurora Cluster (writer + readers) або стандартну RDS instance  
+
+Модуль повністю керується через змінні — жодного hardcode.
 
 ---
 
-## ✔ Результат
+## Приклад використання
 
-Після завершення:
+```hcl
+module "rds" {
+  source = "./modules/rds"
 
-- Джанго-застосунок розгортається через Helm у кластері.
-- CI/CD повністю автоматизований:
-  - Jenkins будує образ → пушить в ECR → оновлює Helm-чарт.
-  - Argo CD підтягує нову версію з Git → оновлює кластер.
-- Вся інфраструктура створена Terraform і може бути легко знищена або відтворена.
+  name                 = "django-db"
+  use_aurora           = true
+  aurora_replica_count = 1
+
+  engine_cluster             = "aurora-postgresql"
+  engine_version_cluster     = "15.3"
+  parameter_group_family_aurora = "aurora-postgresql15"
+
+  engine                     = "postgres"
+  engine_version             = "17.2"
+  parameter_group_family_rds = "postgres17"
+
+  instance_class    = "db.t3.medium"
+  allocated_storage = 20
+
+  db_name   = "djangoapp"
+  username  = "postgres"
+  password  = "pass2315wd"
+
+  subnet_private_ids   = module.vpc.private_subnets
+  subnet_public_ids    = module.vpc.public_subnets
+  publicly_accessible  = false
+
+  vpc_id     = module.vpc.vpc_id
+  node_sg_id = module.eks.eks_nodes_sg_id
+
+  multi_az                = true
+  backup_retention_period = 7
+
+  parameters = {
+    max_connections            = "200"
+    log_min_duration_statement = "500"
+  }
+
+  tags = {
+    Environment = "dev"
+    Project     = "djangoapp"
+  }
+}
+```
+
+---
+
+# Можливості RDS-модуля
+
+- Підтримка **Aurora Cluster** та **Standard RDS**  
+- Автоматичні ресурси:
+  - DB Subnet Group  
+  - Security Group  
+  - Parameter Group  
+- Повна підтримка **PostgreSQL і MySQL**  
+- Multi-AZ  
+- Backup retention  
+- Reader endpoints (Aurora)  
+
+---
+
+# Зміна типу бази
+
+## Aurora → Standard RDS
+
+```hcl
+use_aurora = false
+```
+
+## Зміна типу двигуна
+
+```hcl
+engine = "mysql"
+engine_version = "8.0.35"
+```
+
+## Зміна класу інстансу
+
+```hcl
+instance_class = "db.t3.micro"
+```
+
+## Додавання параметрів
+
+```hcl
+parameters = {
+  max_connections = "300"
+}
+```
+
+---
+
