@@ -1,5 +1,5 @@
 image:
-  repository: 273497135368.dkr.ecr.eu-central-1.amazonaws.com/lesson-5-ecr
+  repository: 140083317091.dkr.ecr.eu-central-1.amazonaws.com/final-project-hw-ecr
   tag: latest
   pullPolicy: Always
 
@@ -12,9 +12,17 @@ containerPort: 8000
 config:
   POSTGRES_HOST: db
   POSTGRES_PORT: "5432"
-  POSTGRES_USER: django_user
-  POSTGRES_DB: django_db
+  POSTGRES_USER: "postgres"
+  POSTGRES_DB: "djangoapp"
   POSTGRES_PASSWORD: "pass2315wd"
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
 
 hpa:
   enabled: true

@@ -7,7 +7,7 @@ variable "region" {
 variable "cluster_name" {
   description = "Назва EKS кластера"
   type        = string
-  default     = "lesson-7-hw-cluster"
+  default     = "final-project-cluster"
 }
 
 variable "subnet_ids" {
@@ -18,7 +18,7 @@ variable "subnet_ids" {
 variable "node_group_name" {
   description = "Назва node group"
   type        = string
-  default     = "lesson7-node-group"
+  default     = "final-project-node-group"
 }
 
 variable "instance_type" {

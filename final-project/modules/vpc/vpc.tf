@@ -43,7 +43,7 @@ resource "aws_eip" "nat" {
   vpc = true
 
   tags = {
-    Name = "lesson-5-hw-nat-eip"
+    Name = "final-project-hw-nat-eip"
   }
 }
 

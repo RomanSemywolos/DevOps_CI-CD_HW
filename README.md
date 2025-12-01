@@ -1,153 +1,191 @@
-# Інфраструктура для Django-застосунку з CI/CD та універсальним RDS-модулем
+# Final Project — DevOps інфраструктура на AWS
 
-Цей проєкт реалізує повний стек інфраструктури для Django-застосунку в AWS, включаючи Kubernetes, GitOps, CI/CD, контейнеризацію та універсальний Terraform-модуль для RDS/Aurora.
+Комплексна інфраструктура Django-застосунку на AWS із використанням Terraform, Kubernetes (EKS), Jenkins, ArgoCD, RDS/Aurora та моніторингом Prometheus + Grafana.
 
----
+## Технології
 
-## Використані технології
-
-- **Terraform** — інфраструктура як код  
-- **AWS**:
-  - S3 + DynamoDB — бекенд Terraform state  
-  - VPC — мережа  
-  - ECR — контейнерний реєстр  
-  - EKS — Kubernetes кластер  
-  - RDS / Aurora — база даних  
-- **Docker** — контейнеризація застосунку  
-- **Kubernetes + Helm** — деплой  
-- **Jenkins** — CI/CD  
-- **Argo CD** — GitOps  
-
----
+- Terraform — інфраструктура як код.
+- AWS: S3, DynamoDB, VPC, ECR, EKS, RDS/Aurora.
+- Docker — контейнеризація.
+- Kubernetes + Helm — деплой.
+- Jenkins — CI/CD.
+- Argo CD — GitOps деплоймент.
+- Prometheus, Grafana, AlertManager — моніторинг і алертинг.
 
 ## Структура проєкту
 
 ```
-lesson-8-9/
-│
-├── main.tf
+django-app/
+├── app/
+├── Dockerfile
+├── Jenkinsfile
+├── docker-compose.yml
+├── manage.py
+└── requirements.txt
+
+final-project/
 ├── backend.tf
+├── main.tf
 ├── outputs.tf
 │
 ├── modules/
 │   ├── s3-backend/
+│   │   ├── s3.tf
+│   │   ├── dynamodb.tf
+│   │   ├── variables.tf
+│   │   └── outputs.tf
+│   │
 │   ├── vpc/
+│   │   ├── vpc.tf
+│   │   ├── routes.tf
+│   │   ├── variables.tf
+│   │   └── outputs.tf
+│   │
 │   ├── ecr/
+│   │   ├── ecr.tf
+│   │   ├── variables.tf
+│   │   └── outputs.tf
+│   │
 │   ├── eks/
+│   │   ├── eks.tf
+│   │   ├── aws_ebs_csi_driver.tf
+│   │   ├── variables.tf
+│   │   └── outputs.tf
+│   │
 │   ├── rds/
 │   │   ├── rds.tf
 │   │   ├── aurora.tf
 │   │   ├── shared.tf
 │   │   ├── variables.tf
 │   │   └── outputs.tf
+│   │
 │   ├── jenkins/
+│   │   ├── jenkins.tf
+│   │   ├── variables.tf
+│   │   ├── providers.tf
+│   │   ├── values.yaml
+│   │   └── outputs.tf
+│   │
 │   └── argo_cd/
+│       ├── argo_cd.tf
+│       ├── variables.tf
+│       ├── providers.tf
+│       ├── values.yaml
+│       ├── outputs.tf
+│       └── charts/
+│           ├── Chart.yaml
+│           ├── values.yaml
+│           └── templates/
+│               ├── application.yaml
+│               └── repository.yaml
 │
 └── charts/
     └── django-app/
-        ├── templates/
         ├── Chart.yaml
-        └── values.yaml
+        ├── values.yaml
+        └── templates/
+            ├── deployment.yaml
+            ├── service.yaml
+            ├── configmap.yaml
+            └── hpa.yaml
 ```
 
----
+## Розгортання інфраструктури
 
-# Розгортання інфраструктури
+### 1. Ініціалізація Terraform
 
-## 1. Ініціалізація Terraform
-
-```bash
+```
+cd final-project/
 terraform init
-```
-
-## 2. Перевірка плану
-
-```bash
 terraform plan
-```
-
-## 3. Створення всіх ресурсів
-
-```bash
 terraform apply
 ```
 
-### У результаті створюється:
+Створюються S3, DynamoDB, VPC, ECR, EKS, RDS/Aurora, Jenkins, Argo CD, Prometheus, Grafana, AlertManager.
 
-- VPC з публічними та приватними підмережами  
-- S3 + DynamoDB для Terraform backend  
-- ECR репозиторій  
-- EKS Kubernetes кластер  
-- **Aurora Cluster або стандартна RDS** (залежно від `use_aurora`)  
-- Jenkins і Argo CD  
-- Деплой Django через Helm  
+### 2. Перевірка стану кластерів
 
----
+```
+kubectl get all -n jenkins
+kubectl get all -n argocd
+kubectl get all -n monitoring
+```
 
-# Docker + ECR
+## Збірка та пуш Docker-образу в ECR
 
-## Логін у ECR
+### Авторизація
 
-```bash
+```
 aws ecr get-login-password --region eu-central-1 \
-  | docker login --username AWS --password-stdin 273497135368.dkr.ecr.eu-central-1.amazonaws.com
+ | docker login --username AWS --password-stdin 140083317091.dkr.ecr.eu-central-1.amazonaws.com
 ```
 
-## Збірка образу
+### Збірка та пуш
 
-```bash
+```
 docker build -t django-app ./django-app
+docker tag django-app:latest 140083317091.dkr.ecr.eu-central-1.amazonaws.com/final-project-hw-ecr:latest
+docker push 140083317091.dkr.ecr.eu-central-1.amazonaws.com/final-project-hw-ecr:latest
 ```
-
-## Пуш у ECR
-
-```bash
-docker tag django-app:latest 273497135368.dkr.ecr.eu-central-1.amazonaws.com/lesson-7-hw-ecr:latest
-docker push 273497135368.dkr.ecr.eu-central-1.amazonaws.com/lesson-7-hw-ecr:latest
-```
-
----
-
-# Kubernetes + Helm
 
 ## Налаштування kubeconfig
 
-```bash
-aws eks --region eu-central-1 update-kubeconfig --name lesson-7-hw-cluster
+```
+aws eks --region eu-central-1 update-kubeconfig --name final-project-hw-cluster
 ```
 
-## Деплой Django застосунку
+## Деплой Django через Helm
 
-```bash
+```
 cd charts/
-helm install django-app ./django-app
+helm upgrade --install django-app ./django-app
 ```
 
-## Видалення
+## Port-forward для інструментів
 
-```bash
+### Jenkins
+
+```
+kubectl port-forward svc/jenkins 8080:8080 -n jenkins
+```
+
+### Argo CD
+
+```
+kubectl port-forward svc/argocd-server 8081:443 -n argocd
+```
+
+### Grafana
+
+```
+kubectl port-forward svc/grafana 3000:80 -n monitoring
+```
+
+## Видалення ресурсів
+
+```
 helm uninstall django-app
 terraform destroy
 ```
 
----
+## Універсальний RDS-модуль
 
-# Універсальний RDS-модуль
+Підтримка двох режимів:
 
-Модуль автоматично створює:
+- RDS Instance
+- Aurora Cluster (writer + reader)
 
-- **DB Subnet Group**  
-- **Security Group**, яка пропускає трафік тільки з EKS worker nodes  
-- **Parameter Group**  
-- Aurora Cluster (writer + readers) або стандартну RDS instance  
+Створюються:
 
-Модуль повністю керується через змінні — жодного hardcode.
+- subnet group  
+- security group  
+- parameter group  
+- кластер або інстанс  
+- reader endpoints (Aurora)
 
----
+### Приклад використання
 
-## Приклад використання
-
-```hcl
+```
 module "rds" {
   source = "./modules/rds"
 
@@ -163,79 +201,72 @@ module "rds" {
   engine_version             = "17.2"
   parameter_group_family_rds = "postgres17"
 
-  instance_class    = "db.t3.medium"
-  allocated_storage = 20
+  instance_class       = "db.t3.medium"
+  allocated_storage    = 20
 
-  db_name   = "djangoapp"
-  username  = "postgres"
-  password  = "pass2315wd"
+  db_name              = "djangoapp"
+  username             = "postgres"
+  password             = "pass2315wd"
 
+  vpc_id               = module.vpc.vpc_id
   subnet_private_ids   = module.vpc.private_subnets
   subnet_public_ids    = module.vpc.public_subnets
-  publicly_accessible  = false
 
-  vpc_id     = module.vpc.vpc_id
-  node_sg_id = module.eks.eks_nodes_sg_id
-
-  multi_az                = true
+  multi_az              = true
   backup_retention_period = 7
 
-  parameters = {
-    max_connections            = "200"
-    log_min_duration_statement = "500"
-  }
-
-  tags = {
-    Environment = "dev"
-    Project     = "djangoapp"
-  }
+  node_sg_id = module.eks.eks_nodes_sg_id
 }
 ```
 
----
+## Моніторинг
 
-# Можливості RDS-модуля
+Модуль автоматично встановлює:
 
-- Підтримка **Aurora Cluster** та **Standard RDS**  
-- Автоматичні ресурси:
-  - DB Subnet Group  
-  - Security Group  
-  - Parameter Group  
-- Повна підтримка **PostgreSQL і MySQL**  
-- Multi-AZ  
-- Backup retention  
-- Reader endpoints (Aurora)  
+- Prometheus  
+- Grafana  
+- Alertmanager  
+- Node exporter  
+- Kube-state-metrics  
+- Prometheus Operator  
+- ServiceMonitor для Django  
+- кастомні алерти  
 
----
+### Основні дашборди
 
-# Зміна типу бази
+- Kubernetes Cluster  
+- Pods / Deployments  
+- Node Exporter  
+- Django (через django-prometheus)
 
-## Aurora → Standard RDS
+### Алерти
 
-```hcl
-use_aurora = false
+- HighMemoryUsage (>80%)  
+- HighCPUUsage (>80%)  
+- PodRestarting  
+- CrashLoopBackoff  
+- KubernetesNodeNotReady  
+
+Slack інтеграція активується параметрами:
+
+```
+slack_webhook_url
+slack_channel
 ```
 
-## Зміна типу двигуна
+## Підсумок
 
-```hcl
-engine = "mysql"
-engine_version = "8.0.35"
-```
+Інфраструктура включає:
 
-## Зміна класу інстансу
+- VPC  
+- EKS кластер  
+- RDS / Aurora  
+- Jenkins  
+- ArgoCD  
+- ECR  
+- Prometheus + Grafana  
+- Повний Helm-чарт Django  
+- HPA автоскейлінг  
+- централізований Terraform backend  
 
-```hcl
-instance_class = "db.t3.micro"
-```
-
-## Додавання параметрів
-
-```hcl
-parameters = {
-  max_connections = "300"
-}
-```
-
----
-
+Усе розгортається та керується через Terraform.
