@@ -14,7 +14,7 @@ config:
   POSTGRES_PORT: "5432"
   POSTGRES_USER: django_user
   POSTGRES_DB: django_db
-  POSTGRES_PASSWORD: pass2315wd
+  POSTGRES_PASSWORD: "pass2315wd"
 
 hpa:
   enabled: true
